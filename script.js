@@ -38,8 +38,8 @@ class LightVisualizer {
         this.frameCount = 0;
         this.lastBrightSpots = [];
 
-        // Debug mode (toggle with 'D' key)
-        this.debugMode = false;
+        // Debug mode (toggle with 'D' key) - START VISIBLE for testing
+        this.debugMode = true;
         this.setupDebugToggle();
 
         this.init();
@@ -56,15 +56,22 @@ class LightVisualizer {
             }
         });
 
-        // Hide debug info by default
+        // Show debug info by default for initial testing
         const infoDiv = document.getElementById('info');
-        infoDiv.style.display = 'none';
+        infoDiv.style.display = 'block';
+        this.debugInfo.innerHTML = 'Initializing webcam...';
     }
 
     async init() {
         console.log('Initializing Light Visualizer...');
+        this.debugInfo.innerHTML = 'Requesting webcam access...';
+
         await this.setupWebcam();
+
+        this.debugInfo.innerHTML = 'Setting up 3D renderer...';
         this.setupThreeJS();
+
+        this.debugInfo.innerHTML = 'Ready! Point lights at camera.';
         this.animate();
     }
 
@@ -81,7 +88,7 @@ class LightVisualizer {
             this.video.srcObject = stream;
 
             return new Promise((resolve) => {
-                this.video.onloadedmetadata = () => {
+                this.video.onloadedmetadata = async () => {
                     this.videoWidth = this.video.videoWidth;
                     this.videoHeight = this.video.videoHeight;
 
@@ -89,7 +96,14 @@ class LightVisualizer {
                     this.videoCanvas.width = window.innerWidth;
                     this.videoCanvas.height = window.innerHeight;
 
-                    console.log(`✓ Webcam initialized: ${this.videoWidth}x${this.videoHeight}`);
+                    // IMPORTANT: Start playing the video
+                    try {
+                        await this.video.play();
+                        console.log(`✓ Webcam initialized and playing: ${this.videoWidth}x${this.videoHeight}`);
+                    } catch (playErr) {
+                        console.error('Error playing video:', playErr);
+                    }
+
                     resolve();
                 };
             });
@@ -376,6 +390,15 @@ class LightVisualizer {
             this.lastBrightSpots = this.detectBrightSpots();
             this.spawnEffectsFromBrightSpots(this.lastBrightSpots);
             this.updateDebugInfo(this.lastBrightSpots);
+        } else {
+            // Show video status if not ready
+            if (this.frameCount % 60 === 0) { // Update once per second
+                const states = ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'];
+                console.log(`Video readyState: ${states[this.video.readyState] || this.video.readyState}`);
+                if (this.debugMode) {
+                    this.debugInfo.innerHTML = `Waiting for video... (${states[this.video.readyState] || this.video.readyState})`;
+                }
+            }
         }
 
         // Update all effects
