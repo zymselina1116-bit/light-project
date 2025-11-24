@@ -5,8 +5,11 @@
 class LightVisualizer {
     constructor() {
         this.video = document.getElementById('webcam');
+        this.videoCanvas = document.getElementById('video-canvas');
+        this.videoCtx = this.videoCanvas.getContext('2d');
         this.analysisCanvas = document.getElementById('analysis-canvas');
         this.analysisCtx = this.analysisCanvas.getContext('2d', { willReadFrequently: true });
+        this.debugInfo = document.getElementById('debug-info');
 
         // Downsampled resolution for analysis
         this.analysisWidth = 160;
@@ -27,10 +30,19 @@ class LightVisualizer {
         this.videoWidth = 0;
         this.videoHeight = 0;
 
+        // Spawn throttling
+        this.spawnCooldown = 0;
+        this.spawnInterval = 0.1; // Spawn effects every 0.1 seconds max
+
+        // Stats
+        this.frameCount = 0;
+        this.lastBrightSpots = [];
+
         this.init();
     }
 
     async init() {
+        console.log('Initializing Light Visualizer...');
         await this.setupWebcam();
         this.setupThreeJS();
         this.animate();
@@ -38,6 +50,7 @@ class LightVisualizer {
 
     async setupWebcam() {
         try {
+            console.log('Requesting webcam access...');
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 1280 },
@@ -51,22 +64,28 @@ class LightVisualizer {
                 this.video.onloadedmetadata = () => {
                     this.videoWidth = this.video.videoWidth;
                     this.videoHeight = this.video.videoHeight;
-                    console.log(`Webcam initialized: ${this.videoWidth}x${this.videoHeight}`);
+
+                    // Set video canvas size
+                    this.videoCanvas.width = window.innerWidth;
+                    this.videoCanvas.height = window.innerHeight;
+
+                    console.log(`✓ Webcam initialized: ${this.videoWidth}x${this.videoHeight}`);
                     resolve();
                 };
             });
         } catch (err) {
-            console.error('Error accessing webcam:', err);
-            alert('Unable to access webcam. Please grant camera permissions.');
+            console.error('✗ Error accessing webcam:', err);
+            alert('Unable to access webcam. Please grant camera permissions and refresh the page.');
         }
     }
 
     setupThreeJS() {
+        console.log('Setting up Three.js...');
+
         // Scene
         this.scene = new THREE.Scene();
 
         // Camera - orthographic for 2D overlay
-        const aspect = window.innerWidth / window.innerHeight;
         this.camera = new THREE.OrthographicCamera(
             -window.innerWidth / 2,
             window.innerWidth / 2,
@@ -86,6 +105,8 @@ class LightVisualizer {
         this.renderer.setClearColor(0x000000, 0);
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);
 
+        console.log('✓ Three.js initialized');
+
         // Handle window resize
         window.addEventListener('resize', () => {
             const width = window.innerWidth;
@@ -98,7 +119,33 @@ class LightVisualizer {
             this.camera.updateProjectionMatrix();
 
             this.renderer.setSize(width, height);
+            this.videoCanvas.width = width;
+            this.videoCanvas.height = height;
         });
+    }
+
+    drawVideoBackground() {
+        // Draw video to background canvas
+        const canvasAspect = this.videoCanvas.width / this.videoCanvas.height;
+        const videoAspect = this.videoWidth / this.videoHeight;
+
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (canvasAspect > videoAspect) {
+            // Canvas is wider - fit to width
+            drawWidth = this.videoCanvas.width;
+            drawHeight = drawWidth / videoAspect;
+            offsetX = 0;
+            offsetY = (this.videoCanvas.height - drawHeight) / 2;
+        } else {
+            // Canvas is taller - fit to height
+            drawHeight = this.videoCanvas.height;
+            drawWidth = drawHeight * videoAspect;
+            offsetX = (this.videoCanvas.width - drawWidth) / 2;
+            offsetY = 0;
+        }
+
+        this.videoCtx.drawImage(this.video, offsetX, offsetY, drawWidth, drawHeight);
     }
 
     detectBrightSpots() {
@@ -130,7 +177,7 @@ class LightVisualizer {
         // Find local maxima
         const brightSpots = [];
         const minDistance = 15; // Minimum pixels between bright spots
-        const threshold = 80;   // Minimum brightness threshold
+        const threshold = 100;   // Minimum brightness threshold
 
         for (let y = 1; y < this.analysisHeight - 1; y++) {
             for (let x = 1; x < this.analysisWidth - 1; x++) {
@@ -197,6 +244,9 @@ class LightVisualizer {
     }
 
     spawnEffectsFromBrightSpots(brightSpots) {
+        // Only spawn effects if cooldown has expired
+        if (this.spawnCooldown > 0) return;
+
         for (const spot of brightSpots) {
             const coords = this.convertToScreenCoords(spot.x, spot.y);
             const { brightness } = spot;
@@ -209,6 +259,7 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
+                console.log(`🎆 Fireworks at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
             } else if (brightness > 180) {
                 // Spawn lightbulb glow
                 this.effects.push(new LightbulbEffect(
@@ -216,6 +267,7 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
+                console.log(`💡 Lightbulb at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
             } else if (brightness > 130) {
                 // Spawn candle flame
                 this.effects.push(new CandleEffect(
@@ -223,18 +275,30 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
-            } else if (brightness > 80) {
+                console.log(`🕯️  Candle at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+            } else if (brightness > 100) {
                 // Spawn firefly
                 this.effects.push(new FireflyEffect(
                     this.scene,
                     coords.x,
                     coords.y
                 ));
+                console.log(`✨ Firefly at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
             }
+        }
+
+        // Reset cooldown if we spawned any effects
+        if (brightSpots.length > 0) {
+            this.spawnCooldown = this.spawnInterval;
         }
     }
 
     updateEffects(deltaTime) {
+        // Update cooldown
+        if (this.spawnCooldown > 0) {
+            this.spawnCooldown -= deltaTime;
+        }
+
         // Update and remove dead effects
         this.effects = this.effects.filter(effect => {
             effect.update(deltaTime);
@@ -246,15 +310,31 @@ class LightVisualizer {
         });
     }
 
+    updateDebugInfo(brightSpots) {
+        if (this.frameCount % 30 === 0) { // Update every 30 frames (~0.5 seconds)
+            const maxBrightness = brightSpots.length > 0 ? brightSpots[0].brightness.toFixed(0) : 0;
+            this.debugInfo.innerHTML = `
+                Bright spots: ${brightSpots.length} |
+                Max brightness: ${maxBrightness} |
+                Active effects: ${this.effects.length}
+            `;
+        }
+    }
+
     animate() {
         requestAnimationFrame(() => this.animate());
 
         const deltaTime = 0.016; // Approximate 60fps
+        this.frameCount++;
 
-        // Detect bright spots from webcam
+        // Draw video background
         if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
-            const brightSpots = this.detectBrightSpots();
-            this.spawnEffectsFromBrightSpots(brightSpots);
+            this.drawVideoBackground();
+
+            // Detect bright spots from webcam
+            this.lastBrightSpots = this.detectBrightSpots();
+            this.spawnEffectsFromBrightSpots(this.lastBrightSpots);
+            this.updateDebugInfo(this.lastBrightSpots);
         }
 
         // Update all effects
@@ -569,5 +649,7 @@ class FireflyEffect {
 // ============================================
 
 window.addEventListener('DOMContentLoaded', () => {
+    console.log('=== LIGHT DETECTION VISUAL PROJECT ===');
+    console.log('Starting initialization...');
     new LightVisualizer();
 });

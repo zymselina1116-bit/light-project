@@ -9,10 +9,14 @@
 <body>
     <div id="info">
         LIGHT INTERACTION — Move a light source in front of the camera
+        <div id="debug-info"></div>
     </div>
 
     <!-- Hidden video element for webcam -->
     <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- Background canvas showing webcam feed -->
+    <canvas id="video-canvas"></canvas>
 
     <!-- Offscreen canvas for pixel analysis -->
     <canvas id="analysis-canvas"></canvas>

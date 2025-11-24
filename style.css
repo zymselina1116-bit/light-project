@@ -16,16 +16,36 @@ body {
     position: fixed;
     top: 20px;
     left: 20px;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
     font-size: 14px;
     z-index: 1000;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.8), 0 0 5px rgba(0, 0, 0, 0.5);
     letter-spacing: 2px;
     pointer-events: none;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#debug-info {
+    font-size: 11px;
+    margin-top: 8px;
+    line-height: 1.5;
+    color: rgba(255, 255, 100, 0.9);
 }
 
 #webcam {
     display: none;
+}
+
+#video-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    object-fit: cover;
 }
 
 #analysis-canvas {
