@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIGHT - Interactive Visual Experience</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="info">
+        LIGHT INTERACTION — Move a light source in front of the camera
+    </div>
+
+    <!-- Hidden video element for webcam -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- Offscreen canvas for pixel analysis -->
+    <canvas id="analysis-canvas"></canvas>
+
+    <!-- Three.js WebGL canvas container -->
+    <div id="canvas-container"></div>
+
+    <!-- Load Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Main application script -->
+    <script src="script.js"></script>
+</body>
+</html>
