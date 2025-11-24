@@ -38,7 +38,27 @@ class LightVisualizer {
         this.frameCount = 0;
         this.lastBrightSpots = [];
 
+        // Debug mode (toggle with 'D' key)
+        this.debugMode = false;
+        this.setupDebugToggle();
+
         this.init();
+    }
+
+    setupDebugToggle() {
+        // Toggle debug info with 'D' key
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'd' || e.key === 'D') {
+                this.debugMode = !this.debugMode;
+                const infoDiv = document.getElementById('info');
+                infoDiv.style.display = this.debugMode ? 'block' : 'none';
+                console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+            }
+        });
+
+        // Hide debug info by default
+        const infoDiv = document.getElementById('info');
+        infoDiv.style.display = 'none';
     }
 
     async init() {
@@ -125,7 +145,7 @@ class LightVisualizer {
     }
 
     drawVideoBackground() {
-        // Draw video to background canvas
+        // Draw video to background canvas (MIRRORED)
         const canvasAspect = this.videoCanvas.width / this.videoCanvas.height;
         const videoAspect = this.videoWidth / this.videoHeight;
 
@@ -145,7 +165,11 @@ class LightVisualizer {
             offsetY = 0;
         }
 
-        this.videoCtx.drawImage(this.video, offsetX, offsetY, drawWidth, drawHeight);
+        // Mirror horizontally
+        this.videoCtx.save();
+        this.videoCtx.scale(-1, 1);
+        this.videoCtx.drawImage(this.video, -offsetX - drawWidth, offsetY, drawWidth, drawHeight);
+        this.videoCtx.restore();
     }
 
     detectBrightSpots() {
@@ -234,11 +258,16 @@ class LightVisualizer {
 
     convertToScreenCoords(x, y) {
         // Convert from analysis canvas coords to screen coords
-        const scaleX = window.innerWidth / this.analysisWidth;
-        const scaleY = window.innerHeight / this.analysisHeight;
+        // Map to full window coordinates first
+        const screenXTemp = (x / this.analysisWidth) * window.innerWidth;
+        const screenYTemp = (y / this.analysisHeight) * window.innerHeight;
 
-        const screenX = x * scaleX - window.innerWidth / 2;
-        const screenY = -(y * scaleY - window.innerHeight / 2);
+        // Mirror X coordinate (because video is mirrored)
+        const mirroredX = window.innerWidth - screenXTemp;
+
+        // Convert to Three.js coordinate system (center origin)
+        const screenX = mirroredX - window.innerWidth / 2;
+        const screenY = -(screenYTemp - window.innerHeight / 2);
 
         return { x: screenX, y: screenY };
     }
@@ -259,7 +288,9 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
-                console.log(`🎆 Fireworks at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                if (this.debugMode) {
+                    console.log(`🎆 Fireworks at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                }
             } else if (brightness > 180) {
                 // Spawn lightbulb glow
                 this.effects.push(new LightbulbEffect(
@@ -267,7 +298,9 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
-                console.log(`💡 Lightbulb at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                if (this.debugMode) {
+                    console.log(`💡 Lightbulb at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                }
             } else if (brightness > 130) {
                 // Spawn candle flame
                 this.effects.push(new CandleEffect(
@@ -275,7 +308,9 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
-                console.log(`🕯️  Candle at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                if (this.debugMode) {
+                    console.log(`🕯️  Candle at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                }
             } else if (brightness > 100) {
                 // Spawn firefly
                 this.effects.push(new FireflyEffect(
@@ -283,7 +318,9 @@ class LightVisualizer {
                     coords.x,
                     coords.y
                 ));
-                console.log(`✨ Firefly at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                if (this.debugMode) {
+                    console.log(`✨ Firefly at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                }
             }
         }
 
@@ -311,12 +348,16 @@ class LightVisualizer {
     }
 
     updateDebugInfo(brightSpots) {
+        // Only update debug info if debug mode is enabled
+        if (!this.debugMode) return;
+
         if (this.frameCount % 30 === 0) { // Update every 30 frames (~0.5 seconds)
             const maxBrightness = brightSpots.length > 0 ? brightSpots[0].brightness.toFixed(0) : 0;
             this.debugInfo.innerHTML = `
                 Bright spots: ${brightSpots.length} |
                 Max brightness: ${maxBrightness} |
-                Active effects: ${this.effects.length}
+                Active effects: ${this.effects.length}<br>
+                <span style="opacity: 0.6; font-size: 10px;">Press 'D' to hide debug info</span>
             `;
         }
     }
@@ -651,5 +692,12 @@ class FireflyEffect {
 window.addEventListener('DOMContentLoaded', () => {
     console.log('=== LIGHT DETECTION VISUAL PROJECT ===');
     console.log('Starting initialization...');
+    console.log('');
+    console.log('💡 INSTRUCTIONS:');
+    console.log('   - Point a light source at your camera');
+    console.log('   - Brighter lights = more dramatic effects');
+    console.log('   - Press "D" key to toggle debug info');
+    console.log('   - Webcam feed is mirrored for natural interaction');
+    console.log('');
     new LightVisualizer();
 });
