@@ -202,72 +202,25 @@ class LightVisualizer {
         );
         const pixels = imageData.data;
 
-        // Create brightness map
-        const brightnessMap = [];
-        for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-            brightnessMap.push(brightness);
-        }
+        // Create array of all pixels with their brightness and coordinates
+        const allPixels = [];
+        for (let y = 0; y < this.analysisHeight; y++) {
+            for (let x = 0; x < this.analysisWidth; x++) {
+                const idx = (y * this.analysisWidth + x) * 4;
+                const r = pixels[idx];
+                const g = pixels[idx + 1];
+                const b = pixels[idx + 2];
+                const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
 
-        // Find local maxima
-        const brightSpots = [];
-        const minDistance = 15; // Minimum pixels between bright spots
-        const threshold = 100;   // Minimum brightness threshold
-
-        for (let y = 1; y < this.analysisHeight - 1; y++) {
-            for (let x = 1; x < this.analysisWidth - 1; x++) {
-                const idx = y * this.analysisWidth + x;
-                const brightness = brightnessMap[idx];
-
-                if (brightness < threshold) continue;
-
-                // Check if this is a local maximum
-                let isLocalMax = true;
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        if (dx === 0 && dy === 0) continue;
-                        const neighborIdx = (y + dy) * this.analysisWidth + (x + dx);
-                        if (brightnessMap[neighborIdx] > brightness) {
-                            isLocalMax = false;
-                            break;
-                        }
-                    }
-                    if (!isLocalMax) break;
-                }
-
-                if (isLocalMax) {
-                    // Check distance from existing spots
-                    let tooClose = false;
-                    for (const spot of brightSpots) {
-                        const dist = Math.sqrt(
-                            Math.pow(spot.x - x, 2) +
-                            Math.pow(spot.y - y, 2)
-                        );
-                        if (dist < minDistance) {
-                            tooClose = true;
-                            // Keep the brighter one
-                            if (brightness > spot.brightness) {
-                                spot.x = x;
-                                spot.y = y;
-                                spot.brightness = brightness;
-                            }
-                            break;
-                        }
-                    }
-
-                    if (!tooClose) {
-                        brightSpots.push({ x, y, brightness });
-                    }
-                }
+                allPixels.push({ x, y, brightness });
             }
         }
 
-        // Sort by brightness and limit count
-        brightSpots.sort((a, b) => b.brightness - a.brightness);
-        return brightSpots.slice(0, 20);
+        // Sort ALL pixels by brightness in descending order
+        allPixels.sort((a, b) => b.brightness - a.brightness);
+
+        // Return ONLY the top 5 brightest pixels
+        return allPixels.slice(0, 5);
     }
 
     convertToScreenCoords(x, y) {
@@ -290,51 +243,73 @@ class LightVisualizer {
         // Only spawn effects if cooldown has expired
         if (this.spawnCooldown > 0) return;
 
-        for (const spot of brightSpots) {
+        // Map each of the top 5 brightest pixels to specific effects by rank
+        for (let rank = 0; rank < brightSpots.length; rank++) {
+            const spot = brightSpots[rank];
             const coords = this.convertToScreenCoords(spot.x, spot.y);
             const { brightness } = spot;
 
-            // Spawn different effects based on brightness
-            if (brightness > 220) {
-                // Spawn fireworks
-                this.effects.push(new FireworksEffect(
-                    this.scene,
-                    coords.x,
-                    coords.y
-                ));
-                if (this.debugMode) {
-                    console.log(`🎆 Fireworks at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
-                }
-            } else if (brightness > 180) {
-                // Spawn lightbulb glow
-                this.effects.push(new LightbulbEffect(
-                    this.scene,
-                    coords.x,
-                    coords.y
-                ));
-                if (this.debugMode) {
-                    console.log(`💡 Lightbulb at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
-                }
-            } else if (brightness > 130) {
-                // Spawn candle flame
-                this.effects.push(new CandleEffect(
-                    this.scene,
-                    coords.x,
-                    coords.y
-                ));
-                if (this.debugMode) {
-                    console.log(`🕯️  Candle at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
-                }
-            } else if (brightness > 100) {
-                // Spawn firefly
-                this.effects.push(new FireflyEffect(
-                    this.scene,
-                    coords.x,
-                    coords.y
-                ));
-                if (this.debugMode) {
-                    console.log(`✨ Firefly at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
-                }
+            // Spawn effects based on RANK (not brightness value)
+            switch (rank) {
+                case 0:
+                    // Brightest pixel → Fireworks
+                    this.effects.push(new FireworksEffect(
+                        this.scene,
+                        coords.x,
+                        coords.y
+                    ));
+                    if (this.debugMode) {
+                        console.log(`🎆 Fireworks [Rank ${rank + 1}] at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                    }
+                    break;
+
+                case 1:
+                    // 2nd brightest → Fire (using Candle effect as flame)
+                    this.effects.push(new CandleEffect(
+                        this.scene,
+                        coords.x,
+                        coords.y
+                    ));
+                    if (this.debugMode) {
+                        console.log(`🔥 Fire [Rank ${rank + 1}] at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                    }
+                    break;
+
+                case 2:
+                    // 3rd brightest → Lightbulb
+                    this.effects.push(new LightbulbEffect(
+                        this.scene,
+                        coords.x,
+                        coords.y
+                    ));
+                    if (this.debugMode) {
+                        console.log(`💡 Lightbulb [Rank ${rank + 1}] at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                    }
+                    break;
+
+                case 3:
+                    // 4th brightest → Candle
+                    this.effects.push(new CandleEffect(
+                        this.scene,
+                        coords.x,
+                        coords.y
+                    ));
+                    if (this.debugMode) {
+                        console.log(`🕯️  Candle [Rank ${rank + 1}] at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                    }
+                    break;
+
+                case 4:
+                    // 5th brightest → Firefly
+                    this.effects.push(new FireflyEffect(
+                        this.scene,
+                        coords.x,
+                        coords.y
+                    ));
+                    if (this.debugMode) {
+                        console.log(`✨ Firefly [Rank ${rank + 1}] at (${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}) - brightness: ${brightness.toFixed(0)}`);
+                    }
+                    break;
             }
         }
 
@@ -366,13 +341,19 @@ class LightVisualizer {
         if (!this.debugMode) return;
 
         if (this.frameCount % 30 === 0) { // Update every 30 frames (~0.5 seconds)
-            const maxBrightness = brightSpots.length > 0 ? brightSpots[0].brightness.toFixed(0) : 0;
-            this.debugInfo.innerHTML = `
-                Bright spots: ${brightSpots.length} |
-                Max brightness: ${maxBrightness} |
-                Active effects: ${this.effects.length}<br>
-                <span style="opacity: 0.6; font-size: 10px;">Press 'D' to hide debug info</span>
-            `;
+            let debugText = `Top 5 Brightest Pixels:<br>`;
+
+            const effectNames = ['🎆 Fireworks', '🔥 Fire', '💡 Lightbulb', '🕯️ Candle', '✨ Firefly'];
+
+            for (let i = 0; i < Math.min(5, brightSpots.length); i++) {
+                const spot = brightSpots[i];
+                debugText += `${i + 1}. ${effectNames[i]} - Brightness: ${spot.brightness.toFixed(0)}<br>`;
+            }
+
+            debugText += `<br>Active effects: ${this.effects.length}<br>`;
+            debugText += `<span style="opacity: 0.6; font-size: 10px;">Press 'D' to hide debug info</span>`;
+
+            this.debugInfo.innerHTML = debugText;
         }
     }
 
@@ -718,7 +699,12 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log('');
     console.log('💡 INSTRUCTIONS:');
     console.log('   - Point a light source at your camera');
-    console.log('   - Brighter lights = more dramatic effects');
+    console.log('   - Top 5 brightest pixels trigger ranked effects:');
+    console.log('     Rank #1 (Brightest) → 🎆 Fireworks');
+    console.log('     Rank #2 → 🔥 Fire');
+    console.log('     Rank #3 → 💡 Lightbulb');
+    console.log('     Rank #4 → 🕯️  Candle');
+    console.log('     Rank #5 → ✨ Firefly');
     console.log('   - Press "D" key to toggle debug info');
     console.log('   - Webcam feed is mirrored for natural interaction');
     console.log('');
